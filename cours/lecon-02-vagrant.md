@@ -71,18 +71,18 @@ Analogie : la **box** est un modèle de gâteau, le **provider** est le four, et
 Rappel des commandes de vérification (utiles en soutenance et sur une autre machine) :
 
 ```bash
-vagrant --version
-VBoxManage --version
-id | tr ',' '\n' | grep vboxusers
+vagrant --version  # version de Vagrant installée
+VBoxManage --version  # version de VirtualBox installée
+id | tr ',' '\n' | grep vboxusers  # vérifie l'appartenance au groupe vboxusers
 ```
 
 Sur une machine où Vagrant manquerait **et sans sudo**, on peut extraire le paquet `.deb` dans son dossier personnel :
 
 ```bash
-mkdir -p ~/tools/vagrant && cd /tmp
-curl -LO https://releases.hashicorp.com/vagrant/2.4.9/vagrant_2.4.9_linux_amd64.deb
-dpkg-deb -x vagrant_2.4.9_linux_amd64.deb ~/tools/vagrant
-export PATH="$HOME/tools/vagrant/usr/bin:$PATH"
+mkdir -p ~/tools/vagrant && cd /tmp  # prépare un dossier d'installation locale
+curl -LO https://releases.hashicorp.com/vagrant/2.4.9/vagrant_2.4.9_linux_amd64.deb  # télécharge le paquet .deb de Vagrant
+dpkg-deb -x vagrant_2.4.9_linux_amd64.deb ~/tools/vagrant  # extrait le .deb sans root
+export PATH="$HOME/tools/vagrant/usr/bin:$PATH"  # ajoute le binaire au PATH
 ```
 
 Ici, **ne le fais pas** : Vagrant est déjà installé.
@@ -92,13 +92,13 @@ Ici, **ne le fais pas** : Vagrant est déjà installé.
 Par défaut, les boxes vont dans `~/.vagrant.d` → ton `/home` de 4,7 Go. On les envoie sur `/goinfre` :
 
 ```bash
-export VAGRANT_HOME=/goinfre/mzouhir/.vagrant.d
+export VAGRANT_HOME=/goinfre/mzouhir/.vagrant.d  # place le stockage global de Vagrant sur /goinfre
 ```
 
 Ajoute cette ligne à `~/.bashrc` pour qu'elle survive aux nouvelles sessions, puis vérifie :
 
 ```bash
-echo $VAGRANT_HOME
+echo $VAGRANT_HOME  # affiche le chemin utilisé
 ```
 
 > Note 42 : `/goinfre` est un espace local Scratch, **non sauvegardé** à long terme. C'est parfait pour des boxes (re-téléchargeables). Ton dépôt Git, lui, reste dans `/home`.
@@ -108,8 +108,8 @@ echo $VAGRANT_HOME
 Sur cette machine, `~/sgoinfre` est un **lien symbolique** vers `/sgoinfre/goinfre/Perso/<login>`, qui t'appartient et qui est **persistant** (contrairement à `/goinfre`). C'est un montage **NFS** (réseau, Kerberos), donc plus lent que le disque local : environ **100 Mo/s** contre **~580 Mo/s** sur `/goinfre` (mesuré). Pour une box de ~700 Mo, cela reste acceptable.
 
 ```bash
-mkdir -p ~/sgoinfre/vagrant_home
-export VAGRANT_HOME=~/sgoinfre/vagrant_home
+mkdir -p ~/sgoinfre/vagrant_home  # crée le dossier persistant des boxes
+export VAGRANT_HOME=~/sgoinfre/vagrant_home  # utilise l'espace persistant sgoinfre
 ```
 
 Avantages : tes boxes survivent aux nettoyages de `/goinfre`. Inconvénients : dépendance au réseau et au ticket Kerberos, extraction plus lente. Dans les deux cas, **les disques des VM restent sur `/goinfre`** (dossier par défaut de VirtualBox) : ne les mets jamais sur NFS, les performances d'exécution s'effondreraient.
@@ -234,12 +234,12 @@ vagrant destroy -f        # sans confirmation
 ### Boxes
 
 ```bash
-vagrant box list
+vagrant box list  # liste les boxes installées
 vagrant box add <box>              # télécharge une box
-vagrant box add --provider virtualbox <box>
+vagrant box add --provider virtualbox <box>  # télécharge une box pour VirtualBox
 vagrant box outdated               # des mises à jour existent-elles ?
-vagrant box update
-vagrant box remove <box>
+vagrant box update  # met à jour la box
+vagrant box remove <box>  # supprime une box locale
 ```
 
 ### Points de cycle de vie à ne pas confondre
@@ -316,7 +316,7 @@ Vagrant crée l'utilisateur `vagrant` (mot de passe `vagrant`) avec `sudo` **san
 - `vagrant ssh-config` te montre l'utilisateur, le port et le fichier de clé réellement utilisés.
 - Tu peux donc te connecter **sans passer par Vagrant** :
   ```bash
-  ssh -i .vagrant/machines/<nom>/virtualbox/private_key -p <port> vagrant@127.0.0.1
+  ssh -i .vagrant/machines/<nom>/virtualbox/private_key -p <port> vagrant@127.0.0.1  # connexion via le port NAT
   ```
   et, si la VM a une IP host-only, `ssh -i <clé> vagrant@192.168.56.110` (le port est alors 22).
 
@@ -340,7 +340,7 @@ Débogage :
 
 ```bash
 vagrant provision --debug        # trace complète
-vagrant ssh -c "tail -n 50 /var/log/syslog"
+vagrant ssh -c "tail -n 50 /var/log/syslog"  # exécute une commande dans la VM et sort
 vagrant ssh                      # puis relancer le script à la main
 ```
 
@@ -440,18 +440,18 @@ C'est la voie la plus **fidèle** (tu retrouves exactement tes outils), mais ce 
 1. Éteins la VM `general_VM` (pas de « save state »).
 2. Clone l'état du snapshot `base-clean` dans une nouvelle VM :
    ```bash
-   VBoxManage clonevm general_VM --snapshot base-clean --name base-clean-gui --register
+   VBoxManage clonevm general_VM --snapshot base-clean --name base-clean-gui --register  # clone l'état du snapshot base-clean dans une nouvelle VM
    ```
 3. Démarre-la :
    ```bash
-   VBoxManage startvm base-clean-gui --type gui
+   VBoxManage startvm base-clean-gui --type gui  # démarre la VM clonée en mode graphique
    ```
 4. Dans la console (texte), installe le bureau :
    ```bash
-   sudo apt-get update
-   sudo DEBIAN_FRONTEND=noninteractive apt-get install -y xfce4 lightdm
-   sudo systemctl set-default graphical.target
-   sudo reboot
+   sudo apt-get update  # met à jour la liste des paquets
+   sudo DEBIAN_FRONTEND=noninteractive apt-get install -y xfce4 lightdm  # installe le bureau XFCE sans question
+   sudo systemctl set-default graphical.target  # démarre sur le bureau graphique
+   sudo reboot  # redémarre la VM
    ```
 5. Au redémarrage, tu obtiens l'écran de connexion graphique. Ton utilisateur et tes fichiers sont ceux de `base-clean`.
 
@@ -488,35 +488,36 @@ end
 
 ```bash
 #!/usr/bin/env bash
-set -euxo pipefail
+set -euxo pipefail  # arrête à la première erreur et affiche chaque commande
 
-export DEBIAN_FRONTEND=noninteractive
+export DEBIAN_FRONTEND=noninteractive  # évite les questions interactives d'apt
 
-apt-get update
+apt-get update  # met à jour la liste des paquets
+# installe XFCE, lightdm et les outils
 apt-get install -y --no-install-recommends \
-  xfce4 lightdm dbus-x11 xterm curl ca-certificates gnupg
+  xfce4 lightdm dbus-x11 xterm curl ca-certificates gnupg  # paquets du bureau + outils
 
 # lightdm comme gestionnaire de connexion, sans question interactive
-echo "lightdm shared/default-x-display-manager select lightdm" | debconf-set-selections
-dpkg-reconfigure -f noninteractive lightdm || true
+echo "lightdm shared/default-x-display-manager select lightdm" | debconf-set-selections  # présélectionne lightdm sans question
+dpkg-reconfigure -f noninteractive lightdm || true  # applique la présélection
 
 # Docker (comme base-clean)
-curl -fsSL https://get.docker.com | sh
-usermod -aG docker vagrant
-systemctl enable --now docker
+curl -fsSL https://get.docker.com | sh  # installe Docker
+usermod -aG docker vagrant  # ajoute vagrant au groupe docker
+systemctl enable --now docker  # active et démarre Docker
 
 # démarrage sur le bureau
-systemctl set-default graphical.target
-systemctl enable lightdm
+systemctl set-default graphical.target  # démarre sur le bureau graphique
+systemctl enable lightdm  # active le gestionnaire de connexion
 
-echo "OK: bureau + docker installes"
+echo "OK: bureau + docker installes"  # marqueur de fin de provisioning
 ```
 
 **3. Démarrer et vérifier**
 
 ```bash
 vagrant up            # télécharge la box, provisionne, ouvre la fenêtre
-vagrant ssh -c "systemctl get-default; systemctl is-active lightdm; docker --version; lsmod | grep vboxguest"
+vagrant ssh -c "systemctl get-default; systemctl is-active lightdm; docker --version; lsmod | grep vboxguest"  # vérifie le bureau, Docker et les Guest Additions
 ```
 
 Attendu : `graphical.target`, `active`, une version de Docker, et `vboxguest` chargé (Guest Additions). Identifiants dans la fenêtre : `vagrant` / `vagrant`.
@@ -526,7 +527,7 @@ Attendu : `graphical.target`, `active`, une version de Docker, et `vboxguest` ch
 Sans elles : pas de `/vagrant`, pas de redimensionnement automatique, pas de presse-papiers.
 
 ```bash
-vagrant ssh -c "lsmod | grep vboxguest; ls /vagrant"
+vagrant ssh -c "lsmod | grep vboxguest; ls /vagrant"  # vérifie les Guest Additions et le dossier partagé
 ```
 
 Si elles manquent : `sudo apt-get install -y build-essential dkms linux-headers-$(uname -r)` puis installer l'ISO des Guest Additions (ou utiliser le plugin `vagrant-vbguest`). Sur les boxes `bento/*` elles sont normalement fournies.
@@ -572,7 +573,7 @@ Ne package **pas** directement `base-clean-gui` : cette VM n'a pas l'utilisateur
 ### Étape 2 — Nettoyer avant l'export
 
 ```bash
-vagrant ssh -c "sudo apt-get clean && sudo rm -rf /var/lib/apt/lists/* /tmp/* /var/tmp/* && history -c"
+vagrant ssh -c "sudo apt-get clean && sudo rm -rf /var/lib/apt/lists/* /tmp/* /var/tmp/* && history -c"  # nettoie la VM avant l'export
 ```
 
 Cela réduit la taille de la box et évite d'embarquer des logs ou l'historique.
@@ -580,15 +581,15 @@ Cela réduit la taille de la box et évite d'embarquer des logs ou l'historique.
 ### Étape 3 — Packager
 
 ```bash
-vagrant halt
-vagrant package --output debian13-gui.box
+vagrant halt  # arrête la VM
+vagrant package --output debian13-gui.box  # exporte la VM en box
 ```
 
 Puis l'ajouter comme box nommée et versionnée :
 
 ```bash
-vagrant box add --name mzouhir/debian13-gui --box-version 1.0.0 debian13-gui.box
-vagrant box list
+vagrant box add --name mzouhir/debian13-gui --box-version 1.0.0 debian13-gui.box  # enregistre la box localement
+vagrant box list  # liste les boxes installées
 ```
 
 ### Étape 4 — L'utiliser dans n'importe quel projet
@@ -636,14 +637,14 @@ end
 
 ```bash
 # UUID et chemins enregistrés
-grep -o '<MachineEntry[^>]*>' ~/.config/VirtualBox/VirtualBox.xml
+grep -o '<MachineEntry[^>]*>' ~/.config/VirtualBox/VirtualBox.xml  # affiche les VM enregistrées dans VirtualBox
 
 # Pour chaque entrée, le .vbox existe-t-il encore ?
-grep -o 'uuid="{[^}]*}" src="[^"]*"' ~/.config/VirtualBox/VirtualBox.xml | while read -r line; do
-  uuid=$(sed -E 's/.*uuid="\{([^}]*)\}".*/\1/' <<<"$line")
-  src=$(sed -E 's/.*src="([^"]*)".*/\1/' <<<"$line")
-  if [ -f "$src" ]; then echo "OK       $uuid  $src"; else echo "FANTOME  $uuid  $src"; fi
-done
+grep -o 'uuid="{[^}]*}" src="[^"]*"' ~/.config/VirtualBox/VirtualBox.xml | while read -r line; do  # pour chaque entrée, vérifie si le fichier .vbox existe
+  uuid=$(sed -E 's/.*uuid="\{([^}]*)\}".*/\1/' <<<"$line")  # extrait l'UUID
+  src=$(sed -E 's/.*src="([^"]*)".*/\1/' <<<"$line")  # extrait le chemin du .vbox
+  if [ -f "$src" ]; then echo "OK       $uuid  $src"; else echo "FANTOME  $uuid  $src"; fi  # affiche OK ou FANTOME
+done  # fin de la boucle
 ```
 
 Toute ligne `FANTOME` est une entrée morte à retirer.
@@ -652,14 +653,14 @@ Toute ligne `FANTOME` est une entrée morte à retirer.
 
 ```bash
 # 1. retirer chaque entrée fantôme (une commande par UUID)
-VBoxManage unregistervm <uuid>
+VBoxManage unregistervm <uuid>  # retire une entrée morte du registre VirtualBox
 
 # 2. oublier l'état Vagrant du projet
-cd ~/chemin/du/projet
-rm -rf .vagrant
+cd ~/chemin/du/projet  # va dans le projet
+rm -rf .vagrant  # supprime l'état local de Vagrant
 
 # 3. recréer la VM (la box sera re-téléchargée si absente)
-vagrant up
+vagrant up  # recrée les VM
 ```
 
 Vérification : `VBoxManage list vms` ne doit plus afficher `<inaccessible>`.
@@ -840,7 +841,7 @@ Contrôle effectué directement sur la machine, projet `~/Documents/iot-lab/iot_
 **TP 5** — le port SSH n'est pas 2222 mais **2200** : Vagrant a détecté une collision (le 2222 est déjà utilisé par la redirection de `general_VM`) et a choisi le port suivant. C'est le comportement normal de la détection de collision. La connexion sans Vagrant fonctionne :
 
 ```bash
-ssh -i .vagrant/machines/default/virtualbox/private_key vagrant@192.168.56.110
+ssh -i .vagrant/machines/default/virtualbox/private_key vagrant@192.168.56.110  # connexion SSH avec la clé générée
 ```
 
 **TP 10** — nom, RAM et CPU sont bien appliqués côté VirtualBox, et distincts du hostname interne (`mzouhirS`).
@@ -1096,11 +1097,11 @@ ssh vagrant@ip -p
 **Verdict : Partiel.**
 **Correction :** Il manque **la clé**. Depuis l'hôte, avec l'IP host-only et le port 22 :
 ```bash
-ssh -i .vagrant/machines/<nom>/virtualbox/private_key vagrant@192.168.56.110
+ssh -i .vagrant/machines/<nom>/virtualbox/private_key vagrant@192.168.56.110  # connexion SSH avec la clé de la VM
 ```
 ou via le NAT :
 ```bash
-ssh -i .vagrant/machines/<nom>/virtualbox/private_key -p 2200 vagrant@127.0.0.1
+ssh -i .vagrant/machines/<nom>/virtualbox/private_key -p 2200 vagrant@127.0.0.1  # connexion via le port NAT
 ```
 Sans `-i`, SSH n'utilise pas la clé de la VM et demande un mot de passe.
 

@@ -115,9 +115,9 @@ cd ..               # remonter d'un niveau
 cd ~                # revenir chez moi
 mkdir -p a/b/c      # créer une arborescence
 touch fichier.txt   # créer un fichier vide
-cp fichier.txt copie.txt
-cp -r dossier dossier2
-mv fichier.txt /tmp/
+cp fichier.txt copie.txt        # copier un fichier
+cp -r dossier dossier2          # copier un dossier récursivement
+mv fichier.txt /tmp/            # déplacer (ou renommer) un fichier
 rm fichier.txt      # supprimer un fichier
 rm -r dossier       # supprimer un dossier (attention)
 cat fichier.txt     # afficher tout
@@ -210,11 +210,11 @@ Sur Linux moderne, les services (serveur SSH, Docker, K3s...) sont gérés par *
 
 ```bash
 systemctl status ssh          # état du service (actif ? erreurs ?)
-systemctl start ssh
-systemctl stop ssh
-systemctl restart ssh
+systemctl start ssh             # démarre le service
+systemctl stop ssh              # arrête le service
+systemctl restart ssh           # redémarre le service
 systemctl enable ssh          # démarrage automatique au boot
-systemctl list-units --type=service --state=running
+systemctl list-units --type=service --state=running   # liste les services actifs
 journalctl -u ssh -n 50       # les 50 dernières lignes de log du service
 journalctl -u ssh -f          # suivre les logs en direct
 sudo systemctl daemon-reload  # après modification d'un fichier .service
@@ -273,7 +273,7 @@ Si `curl` échoue, lis le message : *Connection refused* (rien n'écoute sur ce 
 Le **DNS** traduit un nom (`app1.com`) en IP. En local, on peut court-circuiter le DNS avec le fichier `/etc/hosts` :
 
 ```bash
-cat /etc/hosts
+cat /etc/hosts              # affiche les correspondances nom -> IP locales
 ```
 ```
 127.0.0.1   localhost
@@ -282,14 +282,14 @@ cat /etc/hosts
 
 Résolution d'un nom :
 ```bash
-getent hosts example.com
-dig example.com +short      # si dig est installé
+getent hosts example.com     # résolution de nom vue par le système (respecte /etc/hosts)
+dig example.com +short       # si dig est installé : interroge le DNS directement
 ```
 
 C'est exactement le mécanisme utilisé en p2 pour tester tes applications. Et si tu ne veux pas toucher à `/etc/hosts`, tu peux mentir au serveur en envoyant l'en-tête HTTP `Host` :
 
 ```bash
-curl -H "Host: app1.com" http://192.168.56.110
+curl -H "Host: app1.com" http://192.168.56.110   # envoie un en-tête Host personnalisé (routage virtuel)
 ```
 
 C'est **la commande clé de la partie 2 du projet**. Retiens-la.
@@ -481,7 +481,7 @@ Ta définition est bonne. L'erreur est dans les exemples : `./var` est **relatif
 La logique est la bonne, mais `wc - l` est invalide : l'option doit être collée → `wc -l`. Chez toi le chemin réel est `~/Documents/iot-lab` :
 
 ```bash
-find ~/Documents/iot-lab/projet/confs -name "*.yaml" | wc -l
+find ~/Documents/iot-lab/projet/confs -name "*.yaml" | wc -l   # compte les fichiers .yaml
 ```
 
 Autres formes valables : `ls ~/Documents/iot-lab/projet/confs/*.yaml | wc -l`.
@@ -786,7 +786,7 @@ Compléments : `curl -v` pour le message exact, `systemctl status` du service, e
 
 **Correction :** le meilleur outil est la **trace** :
 ```bash
-bash -x install.sh
+bash -x install.sh   # exécute le script en affichant chaque commande (trace)
 ```
 Elle affiche chaque commande exécutée et son résultat. Vérifie aussi : le shebang, les redirections (`>/dev/null 2>&1` qui masquent tout), et le code de retour (`echo $?`). Ajouter `set -e` en tête du script évite qu'il continue silencieusement après une erreur.
 

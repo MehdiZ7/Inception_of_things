@@ -1,3 +1,16 @@
-p1/.vagrant
+# --- Vagrant ---
+# Dossier d'état local de chaque VM (clés SSH privées, IDs VirtualBox).
+# Ne doit JAMAIS être versionné : il contient machines/*/private_key.
+.vagrant
+
+# --- Secrets / tokens générés au provisioning ---
 p1/confs/node-token
+p2/confs/node-token
+p3/confs/node-token
+
+# --- Sujet ---
 en.subject.pdf
+
+# --- Divers ---
+*.log
+.DS_Store

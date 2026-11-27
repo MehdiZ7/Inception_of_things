@@ -12,7 +12,7 @@
 - [Structure du dépôt](#structure-du-dépôt)
 - [Prérequis](#prérequis)
 - [Partie 1 — K3s & Vagrant](#partie-1--k3s--vagrant)
-- [Partie 2 — K3s & trois applications](#partie-2--k3s--trois-applications-à-venir)
+- [Partie 2 — K3s & trois applications](#partie-2--k3s--trois-applications)
 - [Partie 3 — K3d & Argo CD](#partie-3--k3d--argo-cd-à-venir)
 - [Bonus — GitLab](#bonus--gitlab-à-venir)
 - [Sécurité](#sécurité)
@@ -46,7 +46,18 @@ Le fil rouge : **tout est décrit par du code** (Vagrantfile, scripts, manifests
 │   └── scripts/
 │       ├── server.sh
 │       └── worker.sh
-├── p2/                       # à venir
+├── p2/
+│   ├── Vagrantfile
+│   ├── confs/
+│   │   └── server.yaml
+│   ├── scripts/
+│   │   ├── server.sh
+│   │   └── deploy.sh
+│   └── manifest/
+│       ├── app1.yaml
+│       ├── app2.yaml
+│       ├── app3.yaml
+│       └── ingress.yaml
 ├── p3/                       # à venir
 ├── bonus/                    # à venir
 └── cours/                    # notes de cours (hors rendu)
@@ -228,9 +239,134 @@ On doit également voir dans `kube-system` : `coredns`, `traefik`, `svclb-traefi
 
 ---
 
-## Partie 2 — K3s & trois applications (à venir)
+## Partie 2 — K3s & trois applications
 
-À compléter : trois applications web sur un cluster K3s, routage HTTP par `Host` avec **Ingress/Traefik**, réplicas, route par défaut.
+### Objectif
+
+Un seul nœud K3s (`mzouhirS`, `192.168.56.110`) expose **trois applications web** sur le port 80, routées par nom d'hôte :
+
+- `app1.com` → `app1` (1 réplica) ;
+- `app2.com` → `app2` (3 réplicas) ;
+- tout autre `Host` → `app3` (route par défaut).
+
+Le routage HTTP (couche 7) est assuré par l'**Ingress** de **Traefik**, installé par défaut avec K3s. Les trois Services restent des `ClusterIP` : ils ne sont pas exposés directement.
+
+### Architecture
+
+```
+        client (curl / navigateur)
+          │  Host: app1.com | app2.com | autre
+          ▼
+   192.168.56.110:80  →  Traefik (Ingress Controller K3s)
+          ├── app1.com  →  Service app1  →  Deployment app1  (1 pod)
+          ├── app2.com  →  Service app2  →  Deployment app2  (3 pods)
+          └── défaut    →  Service app3  →  Deployment app3  (1 pod)
+```
+
+### Structure de `p2/`
+
+```
+p2/
+├── Vagrantfile
+├── confs/
+│   └── server.yaml          # node-ip + flannel-iface
+├── scripts/
+│   ├── server.sh            # installation de K3s serveur + kubeconfig
+│   └── deploy.sh            # attente de l'API, apply des manifests, attente des rollouts
+└── manifest/
+    ├── app1.yaml            # ConfigMap + Service + Deployment app1
+    ├── app2.yaml            # idem, avec replicas: 3
+    ├── app3.yaml            # idem app3
+    └── ingress.yaml         # règles Host + route par défaut
+```
+
+### Fonctionnement
+
+**Vagrantfile**
+
+- une seule VM `mzouhirS`, hostname `mzouhirS`, IP host-only `192.168.56.110` ;
+- 1 vCPU, **2048 Mo** de RAM (K3s + Traefik + 5 pods) ;
+- provisioning en deux temps : `server.sh` puis `deploy.sh`.
+
+**Script serveur (`scripts/server.sh`)**
+
+1. installe `curl` ;
+2. copie `confs/server.yaml` dans `/etc/rancher/k3s/config.yaml` (`node-ip`, `flannel-iface`) ;
+3. installe K3s en mode **serveur** ;
+4. copie le kubeconfig dans `~vagrant/.kube/config` et exporte `KUBECONFIG` ;
+5. redémarre K3s pour appliquer la configuration.
+
+**Script de déploiement (`scripts/deploy.sh`)**
+
+1. attend que l'API réponde ;
+2. attend que le nœud soit `Ready` ;
+3. applique tous les manifests de `manifest/` ;
+4. attend la fin des rollouts des trois Deployments ;
+5. attend que l'Ingress reçoive son adresse ;
+6. affiche l'état final (`deploy`, `svc`, `ingress`).
+
+**Manifests**
+
+- chaque application a son **ConfigMap** (`index.html`), son **Service `ClusterIP`** et son **Deployment** ;
+- `app2` a `replicas: 3`, `app1` et `app3` ont `replicas: 1` ;
+- `ingress.yaml` définit deux règles `Host` (`app1.com`, `app2.com`) et une règle **sans `Host`** qui sert de route par défaut vers `app3`.
+
+### Utilisation
+
+```bash
+cd p2
+vagrant up
+```
+
+Pour tout reconstruire :
+
+```bash
+vagrant destroy -f
+vagrant up
+```
+
+### Vérifications
+
+Depuis la VM ou depuis l'hôte :
+
+```bash
+# état des objets
+vagrant ssh mzouhirS -c 'kubectl get deploy,svc,ingress'
+
+# les trois routes
+curl -H 'Host: app1.com' http://192.168.56.110
+curl -H 'Host: app2.com' http://192.168.56.110
+curl http://192.168.56.110
+```
+
+Résultat attendu :
+
+| Requête | Réponse |
+|---|---|
+| `Host: app1.com` | `Welcome from APP1` |
+| `Host: app2.com` | `Welcome from APP2` |
+| sans `Host` (ou autre) | `Welcome from APP3` |
+| `kubectl get deploy app2` | `READY 3/3` |
+| `kubectl get ingress` | `apps-ingress` avec l'adresse `192.168.56.110` |
+
+Depuis un navigateur, ajouter les entrées dans `/etc/hosts` de ton poste :
+
+```
+192.168.56.110  app1.com
+192.168.56.110  app2.com
+```
+
+### Dépannage de la p2
+
+| Symptôme | Cause probable / piste |
+|---|---|
+| `404` sur `http://192.168.56.110/` | aucune règle par défaut, ou Ingress non appliqué (`kubectl get ingress`) |
+| `503` sur un `Host` | Service backend absent, ou sans endpoints (`kubectl get endpointslices`) |
+| `app1.com` renvoie `404` | faute de frappe dans l'en-tête `Host`, ou règle absente |
+| `app2.com` ne répond pas | `app2` n'a pas ses 3 réplicas prêtes, ou le Service ne cible pas les pods |
+| Ingress sans adresse | Traefik n'est pas prêt : `kubectl get pods -n kube-system` |
+| `404` de Traefik malgré l'Ingress | `ingressClassName: traefik` manquant ou faux |
+| Erreur au `vagrant up` sur `deploy.sh` | API pas encore prête ; relancer `vagrant provision` |
 
 ---
 
@@ -261,6 +397,6 @@ On doit également voir dans `kube-system` : `coredns`, `traefik`, `svclb-traefi
 Ce dépôt sera complété au fur et à mesure :
 
 - [x] p1 — Vagrant + K3s (serveur + agent)
-- [ ] p2 — trois applications + Ingress
+- [x] p2 — trois applications + Ingress
 - [ ] p3 — K3d + Argo CD
 - [ ] bonus — GitLab

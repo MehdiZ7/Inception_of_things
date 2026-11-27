@@ -88,8 +88,8 @@ K3s est certifié : ce que tu apprends dessus est valable sur n'importe quel Kub
 Un seul processus regroupe : kube-apiserver, scheduler, controller-manager, la base d'état, le kubelet et containerd. Il écoute sur **6443** (API), **10250** (kubelet), **8472/udp** (Flannel).
 
 ```bash
-sudo systemctl status k3s
-sudo journalctl -u k3s -e
+sudo systemctl status k3s  # état du service serveur K3s
+sudo journalctl -u k3s -e  # logs du service serveur
 ```
 
 ### Mode agent (`k3s agent`)
@@ -97,8 +97,8 @@ sudo journalctl -u k3s -e
 Le worker exécute : kubelet, containerd, kube-proxy et Flannel. Il **ne pilote pas** le cluster, donc **il n'a pas de kubeconfig** : `kubectl` ne s'utilise que depuis le serveur.
 
 ```bash
-sudo systemctl status k3s-agent
-sudo journalctl -u k3s-agent -e
+sudo systemctl status k3s-agent  # état du service agent K3s
+sudo journalctl -u k3s-agent -e  # logs du service agent
 ```
 
 ### Le nom du nœud
@@ -117,12 +117,13 @@ Le script officiel télécharge le binaire, crée l'unité systemd **`k3s.servic
 
 ```bash
 # sur la VM serveur, en root (ou via sudo -i)
-curl -sfL https://get.k3s.io | sh -
+curl -sfL https://get.k3s.io | sh -  # installe K3s en mode serveur (défaut)
 ```
 
 Avec les options de notre réseau (voir §3.6 pour le nom d'interface) :
 
 ```bash
+# installe K3s serveur avec options
 curl -sfL https://get.k3s.io | sh -s - server \
   --node-ip=192.168.56.110 \
   --flannel-iface=eth1
@@ -139,15 +140,15 @@ flannel-iface: eth1
 puis :
 
 ```bash
-curl -sfL https://get.k3s.io | sh -s - server
+curl -sfL https://get.k3s.io | sh -s - server  # installe K3s serveur en lisant config.yaml
 ```
 
 ### Vérifier
 
 ```bash
-sudo systemctl status k3s
-sudo k3s kubectl get nodes
-sudo k3s kubectl get pods -A
+sudo systemctl status k3s  # état du service serveur K3s
+sudo k3s kubectl get nodes  # liste les nœuds du cluster
+sudo k3s kubectl get pods -A  # liste tous les pods
 ```
 
 Attendu : un nœud `Ready`, et les pods de `kube-system` (`coredns`, `traefik`, `local-path-provisioner`, `metrics-server`, `svclb-traefik-...`) en `Running` (Traefik peut mettre une minute).
@@ -173,17 +174,17 @@ Le kubeconfig n'est lisible que par root. Trois pièges à connaître :
 
 ```bash
 # dans le provisioner (qui tourne en root)
-mkdir -p /home/vagrant/.kube
-cp /etc/rancher/k3s/k3s.yaml /home/vagrant/.kube/config
-chown -R vagrant:vagrant /home/vagrant/.kube
-chmod 600 /home/vagrant/.kube/config
-echo 'export KUBECONFIG=$HOME/.kube/config' >> /home/vagrant/.bashrc
+mkdir -p /home/vagrant/.kube  # crée le dossier kubeconfig de vagrant
+cp /etc/rancher/k3s/k3s.yaml /home/vagrant/.kube/config  # copie le kubeconfig
+chown -R vagrant:vagrant /home/vagrant/.kube  # donne le dossier à vagrant
+chmod 600 /home/vagrant/.kube/config  # protège le kubeconfig
+echo 'export KUBECONFIG=$HOME/.kube/config' >> /home/vagrant/.bashrc  # exporte KUBECONFIG dans le shell
 ```
 
 Puis, en tant que `vagrant` (nouvelle session ou `source ~/.bashrc`) :
 
 ```bash
-kubectl get nodes
+kubectl get nodes  # liste les nœuds
 ```
 
 Le fichier pointe vers `https://127.0.0.1:6443`, ce qui convient sur le serveur. Depuis une autre machine, il faudrait remplacer `127.0.0.1` par `192.168.56.110`.
@@ -235,7 +236,7 @@ Un agent **ne pilote pas** le cluster : il n'a donc **pas besoin de kubeconfig**
 ### Étape 1 — Récupérer le token (sur le serveur)
 
 ```bash
-sudo cat /var/lib/rancher/k3s/server/node-token
+sudo cat /var/lib/rancher/k3s/server/node-token  # affiche le token de jonction
 ```
 
 Le token tient sur **une seule ligne**, au format `K10...::server:...`. C'est un secret : ne le colle pas dans un journal ni dans Git.
@@ -243,10 +244,11 @@ Le token tient sur **une seule ligne**, au format `K10...::server:...`. C'est un
 ### Étape 2 — Installer l'agent (sur le worker)
 
 ```bash
+# installe l'agent K3s
 curl -sfL https://get.k3s.io | \
   K3S_URL=https://192.168.56.110:6443 \
   K3S_TOKEN=<le_token> \
-  sh -s - agent --node-ip=192.168.56.111 --flannel-iface=eth1
+  sh -s - agent --node-ip=192.168.56.111 --flannel-iface=eth1  # mode agent + options réseau
 ```
 
 Décryptage :
@@ -277,8 +279,8 @@ Le script fournit aussi un désinstalleur : `/usr/local/bin/k3s-agent-uninstall.
 Sur le **worker** :
 
 ```bash
-systemctl status k3s-agent
-journalctl -u k3s-agent -e
+systemctl status k3s-agent  # état de l'agent
+journalctl -u k3s-agent -e  # logs de l'agent
 curl -k https://192.168.56.110:6443     # l'API doit répondre (même 401/403)
 ```
 
@@ -287,7 +289,7 @@ Dans les logs, cherche `Starting k3s agent` puis `Successfully registered node`.
 Sur le **serveur** :
 
 ```bash
-sudo k3s kubectl get nodes -o wide
+sudo k3s kubectl get nodes -o wide  # nœuds + IP internes
 ```
 
 Attendu : deux nœuds `Ready`, avec les bonnes **INTERNAL-IP** (`.110` et `.111`).
@@ -297,8 +299,8 @@ Attendu : deux nœuds `Ready`, avec les bonnes **INTERNAL-IP** (`.110` et `.111`
 ```bash
 sudo nano /etc/systemd/system/k3s-agent.service.env   # URL / token
 sudo nano /etc/rancher/k3s/config.yaml                # node-ip / flannel-iface
-sudo systemctl daemon-reload
-sudo systemctl restart k3s-agent
+sudo systemctl daemon-reload  # recharge les unités systemd
+sudo systemctl restart k3s-agent  # redémarre l'agent
 ```
 
 Comme pour le serveur, la configuration n'est lue **qu'au démarrage** du service.
@@ -317,7 +319,7 @@ token-file: /etc/rancher/k3s/agent-token
 Puis :
 
 ```bash
-curl -sfL https://get.k3s.io | sh -s - agent
+curl -sfL https://get.k3s.io | sh -s - agent  # installe l'agent en lisant config.yaml
 ```
 
 Pourquoi `sh -s - agent` et pas seulement `sh -` ? C'est la règle du script d'installation :
@@ -339,15 +341,15 @@ Le token permet à un nœud de **rejoindre** le cluster : c'est un secret.
 Côté **serveur**, après installation :
 
 ```bash
-umask 077
-sudo cat /var/lib/rancher/k3s/server/node-token > /vagrant/confs/node-token
-chmod 600 /vagrant/confs/node-token
+umask 077  # crée les fichiers en 600 par défaut
+sudo cat /var/lib/rancher/k3s/server/node-token > /vagrant/confs/node-token  # publie le token dans le dossier partagé
+chmod 600 /vagrant/confs/node-token  # restreint les droits du token
 ```
 
 Côté **worker** :
 
 ```bash
-install -m 600 /vagrant/confs/node-token /etc/rancher/k3s/agent-token
+install -m 600 /vagrant/confs/node-token /etc/rancher/k3s/agent-token  # copie le token en root-only
 ```
 
 Comme `/vagrant` est ton dossier de projet, ajoute **impérativement** dans `.gitignore` :
@@ -381,10 +383,10 @@ Dans un Vagrantfile, le dossier synchronisé `/vagrant` permet au serveur d'écr
 
 ```bash
 # sur le serveur, dans le script de provisioning
-sudo cat /var/lib/rancher/k3s/server/node-token > /vagrant/confs/node-token
+sudo cat /var/lib/rancher/k3s/server/node-token > /vagrant/confs/node-token  # publie le token dans le dossier partagé
 
 # sur le worker
-TOKEN=$(cat /vagrant/confs/node-token)
+TOKEN=$(cat /vagrant/confs/node-token)  # lit le token partagé
 ```
 
 Le serveur doit être provisionné **avant** le worker (ordre des `define`), sinon le token n'existe pas encore.
@@ -416,7 +418,7 @@ Il faut les deux, cohérentes, sur l'interface **host-only**. Vérifie le nom ex
 ### Vérification
 
 ```bash
-sudo k3s kubectl get nodes -o wide
+sudo k3s kubectl get nodes -o wide  # nœuds + IP internes
 # INTERNAL-IP doit être 192.168.56.110 / .111, PAS 10.0.2.15
 ```
 
@@ -438,7 +440,7 @@ kubectl get nodes -o wide                  # nœuds + IP internes
 kubectl get pods -A                        # tous les namespaces
 kubectl get pods -n kube-system -o wide    # pods système
 kubectl describe node <nom>                # conditions, capacités, événements
-kubectl get events -A --sort-by=.lastTimestamp
+kubectl get events -A --sort-by=.lastTimestamp  # liste les événements récents
 kubectl api-resources                      # tous les types d'objets
 kubectl explain pod.spec                   # documentation intégrée
 kubectl config view                        # kubeconfig effectif
@@ -451,12 +453,28 @@ Rappels :
 - `kubectl` en tant que root avec le lien K3s : `sudo k3s kubectl ...`.
 - Les **Events** sont éphémères : durée de vie d'**une heure** par défaut. Sur un cluster inactif depuis longtemps, `get events` peut renvoyer « No resources found » : ce n'est pas une erreur. Déclenche une action (créer un pod) pour en voir apparaître. Pour trier sur un champ toujours rempli, utilise `--sort-by=.metadata.creationTimestamp`.
 
+### Inspecter et manipuler un Pod
+
+```bash
+kubectl get pods -o wide                 # nom, statut, nœud et IP du pod
+kubectl describe pod <nom>               # image, nœud, IP, conteneurs, Events
+kubectl logs <pod>                       # logs (souvent vide tant qu'il n'y a pas de trafic)
+kubectl logs -f <pod>                    # suivre les logs en direct
+kubectl logs <pod> -c <conteneur>        # pod multi-conteneurs
+kubectl exec -it <pod> -- sh             # shell dans le conteneur
+kubectl exec <pod> -- curl -s localhost  # commande sans shell interactif
+kubectl port-forward pod/<pod> 8080:80   # expose le port 80 du pod sur localhost:8080
+kubectl port-forward svc/<svc> 8080:80   # idem via un Service
+```
+
+Piège classique : `kubectl describe node nginx` cherche un **Node** nommé `nginx` et renvoie `nodes "nginx" not found`. Pour un pod, c'est `kubectl describe pod nginx`.
+
 ### Comprendre `api-resources`
 
 `kubectl api-resources` liste **tous les types d'objets** que l'API du cluster connaît (les natifs + ceux ajoutés par des CRD, comme ceux de Traefik ou d'Argo CD plus tard). C'est le catalogue de ce que tu peux manipuler.
 
 ```bash
-kubectl api-resources
+kubectl api-resources  # liste les types d'objets disponibles
 ```
 
 Colonnes :
@@ -524,15 +542,15 @@ Le pod `svclb` a **2 conteneurs** (`2/2`) : un par port exposé (80 et 443).
 
 ```bash
 # état et logs
-sudo systemctl status k3s
-sudo journalctl -u k3s -e
-sudo journalctl -u k3s-agent -e
+sudo systemctl status k3s  # état du service serveur K3s
+sudo journalctl -u k3s -e  # logs du service serveur
+sudo journalctl -u k3s-agent -e  # logs du service agent
 
 # redémarrer
-sudo systemctl restart k3s
+sudo systemctl restart k3s  # redémarre le serveur
 
 # démarrage automatique au boot (déjà fait par le script)
-sudo systemctl is-enabled k3s
+sudo systemctl is-enabled k3s  # vérifie le démarrage automatique
 ```
 
 Désinstallation propre (scripts fournis par K3s) :
@@ -561,7 +579,7 @@ Désinstallation propre (scripts fournis par K3s) :
 Test de reachability de l'API depuis le worker :
 
 ```bash
-curl -k https://192.168.56.110:6443
+curl -k https://192.168.56.110:6443  # teste la joignabilité de l'API
 # une réponse JSON (même 401/403) = l'API est joignable
 ```
 
@@ -621,7 +639,7 @@ Conséquence : les nombres de conteneurs et de pods ne sont pas égaux. Il faut 
 **Impératif** (rapide) :
 
 ```bash
-kubectl run nginx --image=nginx
+kubectl run nginx --image=nginx  # crée un pod nginx
 ```
 
 **Déclaratif** (ce qu'on fera en leçon 4) :
@@ -640,11 +658,11 @@ spec:
 ```
 
 ```bash
-kubectl apply -f pod.yaml
+kubectl apply -f pod.yaml  # applique le manifeste
 kubectl get pods -o wide            # STATUS Running + NODE
 kubectl logs nginx                  # logs du conteneur
 kubectl exec -it nginx -- sh        # puis : curl localhost
-kubectl delete pod nginx
+kubectl delete pod nginx  # supprime le pod
 ```
 
 À retenir : un **Pod nu n'est pas auto-réparé**. S'il meurt ou si on le supprime, il disparaît. En pratique, on utilise un **Deployment** (leçon 4) qui maintient le nombre de réplicas.
@@ -1055,6 +1073,10 @@ aucune idee
 | Nœuds + IP | `kubectl get nodes -o wide` |
 | Pods système | `kubectl get pods -n kube-system -o wide` |
 | Diagnostic nœud | `kubectl describe node <nom>` |
+| Diagnostic pod | `kubectl describe pod <nom>` |
+| Logs d'un pod | `kubectl logs <pod> [-f] [-c conteneur]` |
+| Shell dans un pod | `kubectl exec -it <pod> -- sh` |
+| Accès local à un pod | `kubectl port-forward pod/<pod> 8080:80` |
 | Conteneurs réels | `sudo k3s crictl ps` |
 | Désinstaller | `/usr/local/bin/k3s-uninstall.sh` / `k3s-agent-uninstall.sh` |
 
